@@ -232,11 +232,13 @@ function App() {
     try{
       if(file.size>16000000)throw new Error('Backup is too large (16 MB limit)');
       const parsed=JSON.parse(await file.text());
-      if(parsed.format!=='GlowBite-backup'||!parsed.data||!Array.isArray(parsed.data.entries)||!Array.isArray(parsed.data.water)||!Array.isArray(parsed.data.custom))throw new Error('Not a valid GlowBite backup');
+      // Accept both the v0.2 full-backup envelope and v0.1 raw-data exports.
+      const imported=parsed?.format==='GlowBite-backup'?parsed.data:parsed;
+      if(!imported||!Array.isArray(imported.entries)||!Array.isArray(imported.water)||!Array.isArray(imported.custom))throw new Error('Not a valid GlowBite backup');
       if(!window.confirm('Replace your current diary, custom foods, photos, and profile with this backup?'))return;
       await clearPhotoBundle();
       await restorePhotoBundle(parsed.pictures);
-      const next={...seed(),...parsed.data,goals:{...goalsDefault,...parsed.data.goals}};
+      const next={...seed(),...imported,goals:{...goalsDefault,...imported.goals}};
       setDb(next);
       setNotice('Backup restored ✓');
     }catch(e){setNotice('Import failed: '+e.message);}
