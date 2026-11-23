@@ -44,6 +44,9 @@ jobs:
       - name: Generate Android native project
         run: npx cap add android
 
+      - name: Set barcode scanner Android minimum SDK
+        run: sed -i 's/minSdkVersion = [0-9]*/minSdkVersion = 26/' android/variables.gradle
+
       - name: Compile Android APK
         run: |
           chmod +x android/gradlew
