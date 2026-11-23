@@ -249,13 +249,16 @@ function App() {
   function mealCard(m){
     const rows=entries.filter(e=>e.meal===m.name);
     return <section key={m.name} className={'meal-card hue-'+m.hue}>
-      <div className="meal-head"><span className="meal-emoji">{m.emoji}</span><div className="meal-name"><h3>{m.name}</h3><p>{rows.length?rows.length+' logged':'Add something delicious'}</p></div>
+      <button className="meal-head meal-head-button" onClick={()=>openAdd(m.name)} aria-label={'Choose multiple foods for '+m.name}>
+        <span className="meal-emoji">{m.emoji}</span><div className="meal-name"><h3>{m.name}</h3><p>{rows.length?rows.length+' logged · tap to add more':'Tap to choose foods'}</p></div>
         <div className="meal-cal"><strong>{format(total(rows,'calories'))}</strong><small>kcal</small></div>
-        <button className="icon-round" aria-label={'Add '+m.name} onClick={()=>openAdd(m.name)}><Plus size={18}/></button></div>
+        <span className="icon-round"><Plus size={18}/></span></button>
       {rows.length>0?<div className="meal-rows">{rows.map(e=>{
-        const f=allFoods.find(x=>x.id===e.foodId);return <button className="food-entry" key={e.id} onClick={()=>edit(e)}>
-          <span className="entry-emoji">{f?.emoji||'🍽️'}</span><span className="entry-info"><b>{f?.name||'Food'}</b><small>{e.quantity} × {f?.serving||'serving'}</small></span><strong>{format(e.calories)} <small>kcal</small></strong></button>;
-      })}</div>:<button className="empty-food" onClick={()=>openAdd(m.name)}><Plus size={15}/> Log {m.name.toLowerCase()}</button>}
+        const f=allFoods.find(x=>x.id===e.foodId)||{name:e.name||'Archived food',emoji:e.emoji||'🍽️',serving:e.serving||'serving'};
+        return <button className="food-entry" key={e.id} onClick={()=>edit(e)}>
+          <FoodThumb food={f} photos={photos} className="entry-emoji"/>
+          <span className="entry-info"><b>{f.name}</b><small>{e.quantity} × {f.serving}</small></span><strong>{format(e.calories)} <small>kcal</small></strong></button>;
+      })}</div>:<button className="empty-food" onClick={()=>openAdd(m.name)}><Plus size={15}/> Choose {m.name.toLowerCase()} foods</button>}
     </section>;
   }
   function DateStrip(){
@@ -267,19 +270,19 @@ function App() {
     })}</div>;
   }
   const head=<header className="header"><div className="logo"><span className="logo-mark"><Leaf size={22}/></span>Glow<strong>Bite</strong><b>.</b></div>
-    <button className="profile-chip" onClick={()=>setTab('profile')} aria-label="Open your profile"><span>✦</span></button></header>;
+    <div className="header-actions"><button className="settings-chip" onClick={()=>{close();setTab('settings');}} aria-label="Open settings"><Settings2 size={21}/></button><button className="profile-chip" onClick={()=>{close();setTab('profile');}} aria-label="Open your profile"><span>✦</span></button></div></header>;
   const home=<div className="page">
-    <div className="welcome"><div className="eyebrow">✦ YOUR DAILY GLOW</div><h1>{new Date().getHours()<12?'Good morning':new Date().getHours()<17?'Good afternoon':'Good evening'} <span>✨</span></h1><p>A little nourishment goes a long way.</p></div>
+    <div className="welcome"><div className="eyebrow">✦ YOUR DAILY GLOW</div><h1>{new Date().getHours()<12?'Good morning':new Date().getHours()<17?'Good afternoon':'Good evening'} <span>✨</span></h1><p>{db.preferences?.greeting??'A little nourishment goes a long way.'}</p></div>
     {db.preview&&<div className="demo-banner"><Info size={16}/><span>Preview data is showing.</span><button onClick={clearDemo}>Clear demo</button></div>}
     <DateStrip/>
-    <section className="calorie-hero"><div className="hero-aurora"/><div className="hero-title"><span><Flame size={16}/> DAILY CALORIES</span><span className="goal-tag"><Target size={13}/>{format(db.goals.calories)} goal</span></div>
+    <section className={'calorie-hero banner-'+(db.preferences?.banner||'aurora')}><div className="hero-aurora"/><div className="hero-title"><span><Flame size={16}/> DAILY CALORIES</span><span className="goal-tag"><Target size={13}/>{format(db.goals.calories)} goal</span></div>
       <div className="hero-center"><Ring value={consumed.calories} max={db.goals.calories}/><div className="hero-right"><small>Keep glowing</small><strong>{format(left)}</strong><span>kcal remaining</span><div className="hero-note"><Sparkles size={15}/>{consumed.calories?'You’re doing great!':'A fresh start!'}</div></div></div>
       <div className="hero-footer"><span><i/>{Math.round(fraction(consumed.calories,db.goals.calories)*100)}% of your goal</span><span>{day===today?'Today':dateText(day,{month:'short',day:'numeric'})}</span></div></section>
     <div className="section-title"><div><small>THE GOOD STUFF</small><h2>Macro balance</h2></div><button onClick={()=>setTab('insights')}>Insights <ArrowRight size={16}/></button></div>
     <div className="macro-grid">{metrics.map(m=><article className={'macro-card hue-'+m.color} key={m.key}><span className="macro-icon"><m.icon size={18}/></span><small>{m.label}</small><div className="macro-value">{format(consumed[m.key])}<span>/{format(db.goals[m.key])}g</span></div><div className="track"><i style={{width:(fraction(consumed[m.key],db.goals[m.key])*100)+'%'}}/></div></article>)}</div>
     <div className="section-title"><div><small>ONE TAP AWAY</small><h2>Quick actions</h2></div></div>
     <div className="quick-grid"><button className="quick-card quick-green" onClick={()=>openAdd()}><span><Plus size={23}/></span><div><strong>Add food</strong><small>Log a meal</small></div><ArrowRight size={16}/></button>
-      <button className="quick-card quick-purple" onClick={()=>setNotice('Barcode scanning is coming later')}><span><ScanLine size={22}/></span><div><strong>Scan food</strong><small>Coming soon</small></div><ArrowRight size={16}/></button></div>
+      <button className="quick-card quick-purple" onClick={()=>openAdd()}><span><ScanLine size={22}/></span><div><strong>Scan food</strong><small>Camera or barcode</small></div><ArrowRight size={16}/></button></div>
     <section className="water-card"><span className="water-glass"><i style={{height:(fraction(water,db.goals.water)*100)+'%'}}/><Droplets size={28}/></span>
       <div className="water-text"><small>STAY REFRESHED 💧</small><h3>Water tracker</h3><p><b>{(water/1000).toFixed(2)} L</b> of {(db.goals.water/1000).toFixed(1)} L goal</p><div className="track"><i style={{width:(fraction(water,db.goals.water)*100)+'%'}}/></div></div>
       <button onClick={()=>addWater(250)} aria-label="Add 250 milliliters of water"><Plus size={22}/></button></section>
@@ -308,29 +311,19 @@ function App() {
     <section className="insight-panel"><div className="section-title compact"><div><small>GOAL CHECK-IN</small><h2>Macro progress</h2></div><Target size={22} className="muted-icon"/></div>
       {metrics.map(m=><div className={'goal-progress hue-'+m.color} key={m.key}><div><span>{m.label}</span><strong>{Math.round(fraction(consumed[m.key],db.goals[m.key])*100)}%</strong></div><div className="track"><i style={{width:(fraction(consumed[m.key],db.goals[m.key])*100)+'%'}}/></div></div>)}</section>
     <p className="hint"><Info size={15}/> Nutrition values are illustrative estimates; check packaging or other trusted sources for accuracy.</p></div>;
-  const profile=<div className="page"><div className="page-heading"><small>⚙️ MAKE IT YOURS</small><h1>Your space <span>💜</span></h1><p>A little room for your kind of glow.</p></div>
-    <section className="profile-card"><span className="profile-avatar"><Leaf size={32}/></span><div><small>WELCOME TO GLOWBITE</small><h2>{db.name||'Lovely human'} ✨</h2><p>Your cozy nutrition companion</p></div></section>
-    <section className="settings-panel"><h2><Settings2 size={20}/> Preferences</h2><label htmlFor="username">Display name</label>
-      <input id="username" value={db.name} placeholder="What should we call you?" maxLength={32} onChange={e=>setDb(old=>({...old,name:e.target.value}))}/>
-      <label>Appearance</label><div className="theme-options"><button className={db.theme==='dark'?'chosen':''} onClick={()=>setDb(old=>({...old,theme:'dark'}))}><Moon size={18}/> Midnight neon</button>
-        <button className={db.theme==='light'?'chosen':''} onClick={()=>setDb(old=>({...old,theme:'light'}))}><Sun size={18}/> Pastel light</button></div></section>
-    <section className="settings-panel"><h2><Target size={20}/> Daily goals</h2><p className="settings-sub">Personalize your daily targets.</p><div className="goal-fields">
-      {Object.entries(db.goals).map(([k,v])=><label className="goal-field" key={k}><span>{k==='water'?'Water (ml)':k==='calories'?'Calories (kcal)':k[0].toUpperCase()+k.slice(1)+' (g)'}</span><input type="number" min="1" max="50000" value={v} onChange={e=>updateGoal(k,e.target.value)}/></label>)}</div></section>
-    <section className="settings-panel"><h2><BookOpen size={20}/> Your data</h2><p className="settings-sub">Logs are stored locally on this device, not in an online account.</p>
-      <div className="settings-actions"><button onClick={exportData}>Export data (JSON) <ArrowRight size={16}/></button><button onClick={clearDemo}>Clear sample entries <Trash2 size={16}/></button></div></section>
-    <div className="closing-line"><Heart size={14}/> Nourishment looks different for everyone.</div></div>;
+  const profile=<ProfileView db={db} setDb={setDb} onLibrary={()=>setTab('library')}/>;
+  const settings=<SettingsView db={db} setDb={setDb} onBack={()=>setTab('profile')}
+    onExport={exportBackup} onImport={importBackup} onReset={resetEverything} onClearDemo={clearDemo} toast={setNotice}/>;
+  const library=<FoodManager foods={allFoods} custom={db.custom} photos={photos} hidden={db.hiddenFoods||[]}
+    onSave={upsertCatalogFood} onDelete={removeCatalogFood}
+    onRestore={id=>setDb(old=>({...old,hiddenFoods:(old.hiddenFoods||[]).filter(x=>x!==id)}))}
+    onBack={()=>setTab('profile')} toast={setNotice}/>;
   const results=allFoods.filter(f=>filter==='Favorites'?db.favorites.includes(f.id):(filter==='All'||f.name.toLowerCase().includes(filter.toLowerCase())||f.detail.toLowerCase().includes(filter.toLowerCase())))
     .filter(f=>(f.name+' '+f.detail).toLowerCase().includes(search.trim().toLowerCase()));
   const sheet=modal&&<div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)close();}}><div className="sheet" role="dialog" aria-modal="true" aria-label="Food logging">
     <div className="sheet-handle"/><div className="sheet-title"><div><small>✦ A LITTLE NOURISHMENT</small><h2>{modal==='add'?'Add something delicious':modal==='portion'?(editing?'Edit entry':'One more delicious bite'): 'Create a food'}</h2></div><button onClick={close} aria-label="Close dialog"><X size={22}/></button></div>
-    {modal==='add'&&<><div className="search-box"><Search size={19}/><input autoFocus aria-label="Search food" placeholder="Search foods, ingredients..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-      <div className="filter-list">{['All','Favorites','Breakfast','Lunch','Dinner','Snacks'].map(f=><button key={f} onClick={()=>setFilter(f)} className={filter===f?'active':''}>{f}</button>)}</div>
-      <div className="meal-selector"><label htmlFor="meal-select">Add to</label><select id="meal-select" value={meal} onChange={e=>setMeal(e.target.value)}>{meals.map(m=><option key={m.name}>{m.name}</option>)}</select></div>
-      <div className="food-picker">{results.map(f=><div className="food-option" key={f.id}><button className="favorite-button" aria-label={db.favorites.includes(f.id)?'Remove favorite':'Add favorite'} onClick={()=>toggleFavorite(f.id)}><Heart size={19} fill={db.favorites.includes(f.id)?'currentColor':'none'}/></button>
-        <button className="food-option-main" onClick={()=>select(f)}><span className="food-option-emoji">{f.emoji}</span><span><b>{f.name}</b><small>{f.detail} · {f.serving}</small></span><strong>{format(f.calories)}<small> kcal</small></strong><Plus size={17}/></button></div>)}
-        {results.length===0&&<div className="nothing-found">🍓 No matching foods yet. Try a custom food below.</div>}</div>
-      <button className="create-custom" onClick={()=>setModal('custom')}><Plus size={18}/> Create a custom food</button>
-      <div className="not-ready"><button onClick={()=>setNotice('Barcode scanning is planned for a future update')}><ScanLine size={17}/> Barcode · soon</button><button onClick={()=>setNotice('Photo recognition is planned for a future update')}><Camera size={17}/> Photo · soon</button></div></>}
+    {modal==='add'&&<BatchPicker foods={favoritesForPicker} photos={photos} meal={meal} setMeal={setMeal}
+      onDone={logBatch} onSaveFood={upsertCatalogFood} toast={setNotice}/>}
     {modal==='portion'&&selected&&<div className="portion-body"><div className="portion-feature"><span>{selected.emoji}</span><h3>{selected.name}</h3><p>{selected.detail}</p><small>{selected.serving} per serving</small></div>
       <div className="serving-counter"><span>How many servings?</span><div><button aria-label="Reduce serving" onClick={()=>setQuantity(q=>Math.max(0.25,Math.round((Number(q)-0.25)*100)/100))}><Minus size={19}/></button>
       <input aria-label="Serving quantity" type="number" min="0.25" max="100" step="0.25" value={quantity} onChange={e=>setQuantity(e.target.value)}/>
@@ -345,12 +338,12 @@ function App() {
       <div className="custom-nutrients">{['calories','protein','carbs','fat'].map(k=><label key={k}>{k[0].toUpperCase()+k.slice(1)} ({k==='calories'?'kcal':'g'})<input required min="0" step="any" type="number" inputMode="decimal" placeholder="0" value={custom[k]} onChange={e=>setCustom(old=>({...old,[k]:e.target.value}))}/></label>)}</div>
       <p className="hint">Enter nutrition for one serving. Your custom food stays in your library.</p><button type="submit" className="cta-full"><Plus size={18}/> Save custom food</button></form>}
   </div></div>;
-  return <div className="app-shell">{head}<main>{tab==='home'?home:tab==='diary'?diary:tab==='insights'?insights:profile}</main>
+  return <div className="app-shell">{head}<main>{tab==='home'?home:tab==='diary'?diary:tab==='insights'?insights:tab==='settings'?settings:tab==='library'?library:profile}</main>
     <nav className="bottom-nav" aria-label="Main navigation"><button onClick={()=>setTab('home')} className={tab==='home'?'active':''}><Home size={21}/><span>Home</span></button>
       <button onClick={()=>setTab('diary')} className={tab==='diary'?'active':''}><BookOpen size={21}/><span>Diary</span></button>
       <button className="nav-add" aria-label="Add food" onClick={()=>openAdd()}><Plus size={29}/></button>
       <button onClick={()=>setTab('insights')} className={tab==='insights'?'active':''}><BarChart3 size={21}/><span>Insights</span></button>
-      <button onClick={()=>setTab('profile')} className={tab==='profile'?'active':''}><Settings2 size={21}/><span>Profile</span></button></nav>
+      <button onClick={()=>setTab('profile')} className={tab==='profile'?'active':''}><UserRound size={21}/><span>Me</span></button></nav>
     {notice&&<div role="status" className="toast"><Check size={17}/>{notice}</div>}{sheet}
   </div>;
 }
