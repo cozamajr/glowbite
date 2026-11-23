@@ -1,5 +1,5 @@
 import React,{useEffect,useState,useRef} from 'react';
-import {Activity,ArrowLeft,ArrowRight,BookOpen,Camera,Check,ChevronRight,CloudDownload,Download,Flame,Heart,ImagePlus,Info,Leaf,Minus,Moon,Palette,Plus,RotateCcw,ScanLine,Search,Settings2,SlidersHorizontal,Sun,Trash2,Upload,UserRound,Water,Weight,X} from 'lucide-react';
+import {Activity,ArrowLeft,ArrowRight,BookOpen,Camera,Check,ChevronRight,CloudDownload,Download,Flame,Heart,ImagePlus,Info,Leaf,Minus,Moon,Palette,Plus,RotateCcw,ScanLine,Search,Settings2,SlidersHorizontal,Sun,Trash2,Upload,UserRound,X} from 'lucide-react';
 import { capturePhoto,fileToPhoto,lookupBarcode,scanBarcode,searchOnline } from './foodServices.js';
 
 const clean = s => String(s||'').trim();
