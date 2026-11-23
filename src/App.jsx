@@ -4,7 +4,13 @@ import {
   Check, ChevronLeft, ChevronRight, Droplets, Flame, Heart, Home, Info,
   Leaf, Minus, Moon, Plus, RotateCcw, ScanLine, Search, Settings2, Sparkles,
   Sun, Target, Trash2, UtensilsCrossed, Wheat, X
+  ,UserRound, Download, Upload, Palette
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { getPhotoBundle, savePhoto, restorePhotoBundle, clearPhotoBundle } from './foodServices.js';
+import { BatchPicker, FoodManager, FoodThumb, ProfileView, SettingsView } from './Enhancements.jsx';
 
 const KEY = 'glowbite-v1';
 const goalsDefault = { calories: 2100, protein: 125, carbs: 235, fat: 70, water: 2200 };
@@ -55,7 +61,9 @@ function seed() {
       meal:meals[slot].name,quantity:1,calories:f.calories,protein:f.protein,carbs:f.carbs,fat:f.fat, demo:true});
   }));
   return {entries,water:[{id:'sample-water',date:today,amount:1250,demo:true}],custom:[],
-    favorites:['yogurt','tacos','smoothie'], goals:{...goalsDefault},name:'',theme:'dark',preview:true};
+    favorites:['yogurt','tacos','smoothie'], goals:{...goalsDefault},name:'',theme:'dark',preview:true,
+    hiddenFoods:[],profile:{weight:'',weightUnit:'lb',caloriesBurnedGoal:''},
+    preferences:{accent:'mint',banner:'aurora',greeting:'A little nourishment goes a long way.'}};
 }
 function load() {
   try { const saved=JSON.parse(localStorage.getItem(KEY)); if(saved && Array.isArray(saved.entries) && Array.isArray(saved.water)) return {...seed(),...saved,goals:{...goalsDefault,...saved.goals}}; }
@@ -75,6 +83,7 @@ function Ring({value,max}) {
 }
 function App() {
   const [db,setDb]=useState(load);
+  const [photos,setPhotos]=useState({});
   const [tab,setTab]=useState('home');
   const [day,setDay]=useState(()=>keyOf(new Date()));
   const [modal,setModal]=useState('');
@@ -88,7 +97,8 @@ function App() {
   const [waterAmount,setWaterAmount]=useState('250');
   const [custom,setCustom]=useState({name:'',serving:'1 serving',calories:'',protein:'',carbs:'',fat:''});
   const today=keyOf(new Date());
-  const allFoods=[...foods,...db.custom];
+  const allFoods=[...foods.filter(f=>!(db.hiddenFoods||[]).includes(f.id)&&!(db.custom||[]).some(x=>x.id===f.id)),...(db.custom||[])];
+  const favoritesForPicker=allFoods.map(f=>({...f,isFavorite:db.favorites.includes(f.id)}));
   const entries=db.entries.filter(e=>e.date===day);
   const consumed={calories:total(entries,'calories'),protein:total(entries,'protein'),carbs:total(entries,'carbs'),fat:total(entries,'fat')};
   const water=total(db.water.filter(w=>w.date===day),'amount');
@@ -105,20 +115,26 @@ function App() {
   const avg=Math.round(total(week,'calories')/7);
   useEffect(()=>{try {localStorage.setItem(KEY,JSON.stringify(db));}catch(error){}},[db]);
   useEffect(()=>{document.documentElement.dataset.theme=db.theme;},[db.theme]);
+  useEffect(()=>{document.documentElement.dataset.accent=db.preferences?.accent||'mint';},[db.preferences?.accent]);
+  useEffect(()=>{let active=true;getPhotoBundle((db.custom||[]).map(f=>f.id)).then(images=>{if(active)setPhotos(images);}).catch(()=>{});return()=>{active=false;};},[db.custom]);
   useEffect(()=>{if(!notice)return;const t=setTimeout(()=>setNotice(''),2700);return ()=>clearTimeout(t);},[notice]);
   function openAdd(category='Breakfast'){setMeal(category);setSearch('');setFilter('All');setEditing(null);setSelected(null);setQuantity(1);setModal('add');}
   function close(){setModal('');setEditing(null);setSelected(null);}
   function select(food){setSelected(food);setQuantity(1);setEditing(null);setModal('portion');}
   function edit(entry){
-    const food=allFoods.find(f=>f.id===entry.foodId);
-    if(!food)return;
+    const food=allFoods.find(f=>f.id===entry.foodId)||{
+      id:entry.foodId,name:entry.name||'Archived food',emoji:entry.emoji||'🍽️',
+      detail:'Previously logged',serving:entry.serving||'1 serving',
+      calories:(entry.calories||0)/entry.quantity,protein:(entry.protein||0)/entry.quantity,
+      carbs:(entry.carbs||0)/entry.quantity,fat:(entry.fat||0)/entry.quantity
+    };
     setSelected(food);setMeal(entry.meal);setQuantity(entry.quantity);setEditing(entry);setModal('portion');
   }
   function saveFood(){
     const q=Number(quantity);
     if(!selected || !Number.isFinite(q) || q<=0 || q>100){setNotice('Choose a valid serving amount');return;}
     const next={id:editing?editing.id:uid(),foodId:selected.id,meal,date:editing?editing.date:day,
-      quantity:q,calories:Math.round(selected.calories*q),protein:Math.round(selected.protein*q*10)/10,
+      quantity:q,name:selected.name,emoji:selected.emoji,serving:selected.serving,calories:Math.round(selected.calories*q),protein:Math.round(selected.protein*q*10)/10,
       carbs:Math.round(selected.carbs*q*10)/10,fat:Math.round(selected.fat*q*10)/10};
     setDb(old=>({...old,entries:editing?old.entries.map(e=>e.id===editing.id?next:e):[...old.entries,next]}));
     setNotice(editing?'Food updated ✓':'Added to '+meal.toLowerCase()+' ✓');close();
@@ -164,6 +180,71 @@ function App() {
     const url=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:'application/json'}));
     const a=document.createElement('a');a.href=url;a.download='glowbite-'+today+'.json';a.click();
     setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function upsertCatalogFood(food,picture){
+    if(picture)await savePhoto(food.id,picture);
+    else if(photos[food.id]&&!food.imageUrl)await savePhoto(food.id,null);
+    const {picture:ignore,...saved}=food;
+    setDb(old=>({...old,custom:[...old.custom.filter(f=>f.id!==saved.id),saved],
+      hiddenFoods:(old.hiddenFoods||[]).filter(id=>id!==saved.id)}));
+    if(picture)setPhotos(old=>({...old,[saved.id]:picture}));
+    else if(photos[food.id]&&!food.imageUrl)setPhotos(old=>{const next={...old};delete next[food.id];return next;});
+  }
+  function removeCatalogFood(food){
+    const builtin=foods.some(f=>f.id===food.id);
+    setDb(old=>({...old,custom:old.custom.filter(f=>f.id!==food.id),
+      favorites:old.favorites.filter(id=>id!==food.id),
+      hiddenFoods:builtin?Array.from(new Set([...(old.hiddenFoods||[]),food.id])):(old.hiddenFoods||[])}));
+    setNotice('Food removed from your library');
+  }
+  function logBatch(selectedItems,chosenMeal){
+    if(!selectedItems.length)return;
+    const newEntries=selectedItems.map(({food,quantity})=>({
+      id:uid(),foodId:food.id,date:day,meal:chosenMeal,quantity,
+      name:food.name,emoji:food.emoji,serving:food.serving,
+      calories:Math.round(food.calories*quantity),
+      protein:Math.round(food.protein*quantity*10)/10,
+      carbs:Math.round(food.carbs*quantity*10)/10,
+      fat:Math.round(food.fat*quantity*10)/10
+    }));
+    const external=selectedItems.map(x=>x.food).filter(f=>f.source==='Open Food Facts'&&!allFoods.some(x=>x.id===f.id));
+    setDb(old=>({...old,entries:[...old.entries,...newEntries],
+      custom:[...old.custom,...external.filter(f=>!old.custom.some(x=>x.id===f.id))]}));
+    setNotice(selectedItems.length+' foods added to '+chosenMeal.toLowerCase()+' ✓');
+    close();
+  }
+  async function exportBackup(){
+    try{
+      const pictures=await getPhotoBundle((db.custom||[]).map(f=>f.id));
+      const content=JSON.stringify({format:'GlowBite-backup',version:2,exportedAt:new Date().toISOString(),data:db,pictures},null,2);
+      const filename='GlowBite-backup-'+today+'.json';
+      if(Capacitor.isNativePlatform()){
+        const file=await Filesystem.writeFile({path:filename,data:content,directory:Directory.Cache,encoding:Encoding.UTF8});
+        await Share.share({title:'GlowBite data backup',text:'My GlowBite backup',url:file.uri,dialogTitle:'Save or share GlowBite backup'});
+      }else{
+        const url=URL.createObjectURL(new Blob([content],{type:'application/json'}));
+        const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }
+      setNotice('Backup ready ✓');
+    }catch(e){setNotice('Backup failed: '+e.message);}
+  }
+  async function importBackup(file){
+    try{
+      if(file.size>16000000)throw new Error('Backup is too large (16 MB limit)');
+      const parsed=JSON.parse(await file.text());
+      if(parsed.format!=='GlowBite-backup'||!parsed.data||!Array.isArray(parsed.data.entries)||!Array.isArray(parsed.data.water)||!Array.isArray(parsed.data.custom))throw new Error('Not a valid GlowBite backup');
+      if(!window.confirm('Replace your current diary, custom foods, photos, and profile with this backup?'))return;
+      await clearPhotoBundle();
+      await restorePhotoBundle(parsed.pictures);
+      const next={...seed(),...parsed.data,goals:{...goalsDefault,...parsed.data.goals}};
+      setDb(next);
+      setNotice('Backup restored ✓');
+    }catch(e){setNotice('Import failed: '+e.message);}
+  }
+  async function resetEverything(){
+    if(!window.confirm('Permanently reset ALL local GlowBite data, including foods, photos and diary entries? Export a backup first.'))return;
+    try{await clearPhotoBundle();const fresh=seed();setPhotos({});setDb({...fresh,entries:[],water:[],preview:false});setDay(today);setTab('home');setNotice('Local data reset ✓');}
+    catch(e){setNotice('Reset failed: '+e.message);}
   }
   function mealCard(m){
     const rows=entries.filter(e=>e.meal===m.name);
