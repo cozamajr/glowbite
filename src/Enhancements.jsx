@@ -106,7 +106,7 @@ export function FoodManager({foods,custom,photos,hidden,onSave,onDelete,onRestor
       {online.map(f=><button className="remote-result" key={f.id} onClick={()=>setEdit(f)}><FoodThumb food={f}/><span><strong>{f.name}</strong><small>{f.detail} · {fmt(f.calories)} kcal / {f.serving}</small></span><Plus size={18}/></button>)}
     </section><p className="source-note">Food data & images: Open Food Facts contributors · ODbL / CC BY-SA · <a href="https://world.openfoodfacts.org/" target="_blank" rel="noreferrer">openfoodfacts.org</a></p></div>;
 }
-export function BatchPicker({foods,photos,meal,setMeal,onDone,onEdit,toast}){
+export function BatchPicker({foods,photos,meal,setMeal,onDone,onSaveFood,toast}){
   const [query,setQuery]=useState('');
   const [mode,setMode]=useState('library');
   const [selected,setSelected]=useState([]);
@@ -114,6 +114,7 @@ export function BatchPicker({foods,photos,meal,setMeal,onDone,onEdit,toast}){
   const [busy,setBusy]=useState(false);
   const [barcode,setBarcode]=useState('');
   const [status,setStatus]=useState('');
+  const [editorFood,setEditorFood]=useState(undefined);
   const favorites=foods.filter(f=>f.isFavorite);
   const filtered=(mode==='favorites'?favorites:mode==='online'?remote:foods)
     .filter(f=>(f.name+' '+f.detail).toLowerCase().includes(mode==='online'?'':query.toLowerCase()));
@@ -146,7 +147,15 @@ export function BatchPicker({foods,photos,meal,setMeal,onDone,onEdit,toast}){
     catch(e){setStatus('Online search failed: '+e.message);}
     finally{setBusy(false);}
   };
+  if(editorFood!==undefined)return <FoodEditor item={editorFood} photos={photos} onSave={async(food,pic)=>{
+    await onSaveFood(food,pic);
+    setSelected(old=>old.some(x=>x.id===food.id)?old:[...old,{id:food.id,food,quantity:1}]);
+    setEditorFood(undefined);
+    toast('Food saved and selected ✓');
+  }} onCancel={()=>setEditorFood(undefined)} toast={toast}/>;
   return <div className="batch-picker">
+    <div className="picker-top"><span>{selected.length} foods selected</span>
+      <button disabled={!selected.length} onClick={()=>onDone(selected,meal)}>Done <Check size={16}/></button></div>
     <div className="batch-controls"><label htmlFor="picker-meal">Add foods to</label><select id="picker-meal" value={meal} onChange={e=>setMeal(e.target.value)}>{mealNames.map(m=><option key={m}>{m}</option>)}</select></div>
     <div className="search-box"><Search size={19}/><input aria-label="Search foods" placeholder="Search food by name…" value={query} onChange={e=>{setQuery(e.target.value);if(mode==='online')setMode('library');}} onKeyDown={e=>e.key==='Enter'&&doSearch(e)}/></div>
     <div className="picker-tabs"><button className={mode==='library'?'active':''} onClick={()=>setMode('library')}>My foods</button><button className={mode==='favorites'?'active':''} onClick={()=>setMode('favorites')}>Favorites</button>
@@ -154,7 +163,7 @@ export function BatchPicker({foods,photos,meal,setMeal,onDone,onEdit,toast}){
     <div className="picker-tools"><button onClick={doSearch} disabled={busy}><CloudDownload size={15}/> {busy?'Searching…':'Find online'}</button>
       <button onClick={scan} disabled={busy}><ScanLine size={15}/> Scan barcode</button></div>
     <div className="barcode-entry"><input aria-label="Enter barcode" inputMode="numeric" placeholder="Or enter a barcode number" value={barcode} onChange={e=>setBarcode(e.target.value)}/><button disabled={busy} onClick={()=>lookup(barcode)}>Look up</button></div>
-    {status&&<p className="scan-status">{status}{status.startsWith('Not found')&&<button onClick={()=>onEdit({code:barcode})}>Create this food</button>}</p>}
+    {status&&<p className="scan-status">{status}{status.startsWith('Not found')&&<button onClick={()=>setEditorFood({code:barcode})}>Create this food</button>}</p>}
     <div className="multi-food-list">{filtered.map(food=>{
       const s=selected.find(x=>x.id===food.id);
       return <div className={'multi-food-row '+(s?'checked':'')} key={food.id}>
@@ -165,7 +174,7 @@ export function BatchPicker({foods,photos,meal,setMeal,onDone,onEdit,toast}){
       </div>;
     })}
       {filtered.length===0&&<div className="nothing-found">No foods here yet. Search online or create a food.</div>}</div>
-    <button className="create-custom" onClick={()=>onEdit(null)}><Plus size={18}/> Create a custom food with a photo</button>
+    <button className="create-custom" onClick={()=>setEditorFood(null)}><Plus size={18}/> Create a custom food with a photo</button>
     <div className="batch-footer"><span><strong>{selected.length}</strong> items selected</span><button disabled={!selected.length} onClick={()=>onDone(selected,meal)}><Check size={17}/> Done · Add {selected.length}</button></div>
     <p className="source-note">Online results: Open Food Facts · Nutrition may be incomplete. Review before saving.</p>
   </div>;
