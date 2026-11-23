@@ -1,0 +1,11 @@
+{
+  "appId": "com.cozamajr.glowbite",
+  "appName": "GlowBite",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#101322"
+  }
+}
